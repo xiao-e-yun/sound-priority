@@ -28,8 +28,7 @@ impl Config {
       return None;
     }
     let file = fs::File::open(path).expect("Failed to open config config file");
-    let config: Config = serde_json::from_reader(file).expect("Failed to parse config config file");
-    Some(config)
+    serde_json::from_reader(file).ok()
   }
   pub fn save(&self) -> std::io::Result<()> {
     let path = Self::path();
