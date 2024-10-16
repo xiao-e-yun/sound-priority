@@ -1,0 +1,36 @@
+[package]
+name = "volume-controller"
+version = "0.1.0"
+description = "Volume Controller"
+authors = ["you"]
+edition = "2021"
+
+[build-dependencies]
+ico = "0.3.0"
+tauri-build = { version = "2.0.0", features = [] }
+winresource = "0.1.17"
+
+[dependencies]
+clap = { version = "4.5.20", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+windows-result = "0.1.1"
+serde_json = "1"
+tray-icon = "0.19.1"
+auto-launch = "=0.2.0"
+winit = "0.30.5"
+convert_case = "0.6.0"
+
+[dependencies.windows]
+version = "0.56.0"
+features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_Media_Audio",
+    "Win32_System_Variant",
+    "Win32_System_Threading",
+    "Win32_Devices_Properties",
+    "Win32_System_ProcessStatus",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_System_Com_StructuredStorage",
+]
