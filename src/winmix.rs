@@ -186,17 +186,15 @@ impl Derive {
         continue;
       }
 
-      let proc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)?;
+      let Ok(proc) = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid) else {
+        continue;
+      };
 
       let mut path: [u16; MAX_PATH as usize] = [0; MAX_PATH as usize];
 
-      let res = GetModuleFileNameExW(proc, None, &mut path);
-      CloseHandle(proc)?;
+      let _ = GetModuleFileNameExW(proc, None, &mut path);
 
-      if res == 0 {
-        // Failed to get filename from PID (insufficient permissions?)
-        //continue
-      }
+      CloseHandle(proc)?;
 
       // Trim trailing \0
       let mut path = String::from_utf16_lossy(&path);
