@@ -16,6 +16,7 @@ use std::vec::IntoIter;
 use config::Config;
 use menu::MenuSystem;
 use settings::Settings;
+use single_instance::SingleInstance;
 use tray_icon::menu::MenuEvent;
 use winit::application::ApplicationHandler;
 use winit::event::DeviceEvent;
@@ -30,6 +31,12 @@ use winmix::WinMix;
 pub const APP_NAME: &str = "Volume Controller";
 
 pub fn main() {
+  let instance = SingleInstance::new(APP_NAME).unwrap();
+  if !instance.is_single() {
+    println!("detected another instance");
+    return;
+  }
+
   println!("loading config");
   let config = Config::load().unwrap_or_default();
 
