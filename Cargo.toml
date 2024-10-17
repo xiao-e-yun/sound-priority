@@ -7,18 +7,17 @@ edition = "2021"
 
 [build-dependencies]
 ico = "0.3.0"
-tauri-build = { version = "2.0.0", features = [] }
 winresource = "0.1.17"
 
 [dependencies]
-clap = { version = "4.5.20", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-windows-result = "0.1.1"
 serde_json = "1"
-tray-icon = "0.19.1"
-auto-launch = "=0.2.0"
 winit = "0.30.5"
+tray-icon = "0.19.1"
 convert_case = "0.6.0"
+auto-launch = "=0.2.0"
+windows-result = "0.1.1"
+single-instance = "0.3.3"
 
 [dependencies.windows]
 version = "0.56.0"
