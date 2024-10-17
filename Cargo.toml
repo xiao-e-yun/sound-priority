@@ -5,6 +5,10 @@ description = "Volume Controller"
 authors = ["you"]
 edition = "2021"
 
+[profile.release]
+lto = true
+
+
 [build-dependencies]
 ico = "0.3.0"
 winresource = "0.1.17"
