@@ -17,8 +17,6 @@ use config::Config;
 use menu::MenuSystem;
 use settings::Settings;
 use tray_icon::menu::MenuEvent;
-use tray_icon::Icon;
-use tray_icon::TrayIconBuilder;
 use winit::application::ApplicationHandler;
 use winit::event::DeviceEvent;
 use winit::event::DeviceId;
@@ -32,29 +30,29 @@ use winmix::WinMix;
 pub const APP_NAME: &str = "Volume Controller";
 
 pub fn main() {
+  println!("loading config");
   let config = Config::load().unwrap_or_default();
 
-  let tray = TrayIconBuilder::new()
-    .with_tooltip(APP_NAME)
-    .with_icon(Icon::from_resource(32512, None).expect("failed to load icon"))
-    .with_menu_on_left_click(true)
-    .build()
-    .unwrap();
-
+  println!("loading settings");
   let settings = Settings::new(config.clone());
-  let mut menu = MenuSystem::new(tray);
+
+  println!("loading menu");
+  let mut menu = MenuSystem::new();
+
+  println!("update menu");
   menu.update(&settings);
 
+  println!("start daemon");
   let daemon = start_daemon(config);
 
-  let mut app = App {
-    settings,
-    menu,
-    daemon,
-  };
-
+  println!("start create event loop");
   let event_loop = EventLoop::builder().build().unwrap();
   event_loop.set_control_flow(ControlFlow::Wait);
+
+  println!("start create app");
+  let mut app = App::new(daemon, settings, menu);
+
+  println!("mount app");
   event_loop.run_app(&mut app).unwrap();
 }
 
@@ -126,13 +124,17 @@ fn start_daemon(mut config: Config) -> Sender<DaemonCommand> {
       // receive command
       match command {
         Ok(DaemonCommand::Update(new_config)) => {
-          println!("updated config");
+          println!("daemon.updated");
           config = new_config;
         }
         Ok(DaemonCommand::Suspended) => loop {
+          println!("daemon.suspended");
           let command = recv.recv();
           match command {
-            Ok(DaemonCommand::Resumed) => break,
+            Ok(DaemonCommand::Resumed) => {
+              println!("daemon.resumed");
+              break;
+            }
             Err(RecvError) => break 'main,
             _ => {}
           }
@@ -218,26 +220,14 @@ pub struct App {
   pub menu: MenuSystem,
 }
 
-impl ApplicationHandler for App {
-  fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, _: DeviceEvent) {
-    let mut updated = false;
-
-    if let Ok(event) = MenuEvent::receiver().try_recv() {
-      updated |= self.click_menu_item(event);
-    }
-
-    // update menu
-    if updated {
-      println!("reload menu");
-      self.menu.update(&self.settings);
+impl App {
+  fn new(daemon: Sender<DaemonCommand>, settings: Settings, menu: MenuSystem) -> Self {
+    Self {
+      daemon,
+      settings,
+      menu,
     }
   }
-
-  fn resumed(&mut self, _: &ActiveEventLoop) {}
-  fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
-}
-
-impl App {
   fn click_menu_item(&mut self, event: MenuEvent) -> bool {
     let id = event.id().0.as_str();
     let idents = id.split('.').collect::<Vec<_>>();
@@ -306,6 +296,25 @@ impl App {
 
     true
   }
+}
+
+impl ApplicationHandler for App {
+  fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, _: DeviceEvent) {
+    let mut updated = false;
+
+    if let Ok(event) = MenuEvent::receiver().try_recv() {
+      updated |= self.click_menu_item(event);
+    }
+
+    // update menu
+    if updated {
+      println!("reload menu");
+      self.menu.update(&self.settings);
+    }
+  }
+
+  fn resumed(&mut self, _: &ActiveEventLoop) {}
+  fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
 }
 
 //     builder
