@@ -2,18 +2,23 @@ use std::collections::HashSet;
 
 use convert_case::{Case, Casing};
 use tray_icon::{
-  menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
-  TrayIcon,
+  menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu}, Icon, TrayIcon, TrayIconBuilder
 };
 
-use crate::{settings::Settings, winmix::WinMix};
+use crate::{settings::Settings, winmix::WinMix, APP_NAME};
 
 pub struct MenuSystem {
   tray: TrayIcon,
 }
 
 impl MenuSystem {
-  pub fn new(tray: TrayIcon) -> Self {
+  pub fn new() -> Self {
+    let tray = TrayIconBuilder::new()
+      .with_tooltip(APP_NAME)
+      .with_icon(Icon::from_resource(32512, None).expect("failed to load icon"))
+      .with_menu_on_left_click(true)
+      .build()
+      .unwrap();
     Self { tray }
   }
   pub fn update(&mut self, settings: &Settings) {
