@@ -26,10 +26,7 @@ impl Settings {
 
   // functions
   pub fn get_autolaunch(&self) -> bool {
-    self
-      .autolaunch
-      .is_enabled()
-      .expect("failed to get autolaunch")
+    self.autolaunch.is_enabled().unwrap_or(false)
   }
   pub fn set_autolaunch(&mut self, autolaunch: bool) {
     if autolaunch {
