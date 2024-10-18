@@ -2,7 +2,8 @@ use std::collections::HashSet;
 
 use convert_case::{Case, Casing};
 use tray_icon::{
-  menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu}, Icon, TrayIcon, TrayIconBuilder
+  menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
+  Icon, TrayIcon, TrayIconBuilder,
 };
 
 use crate::{settings::Settings, winmix::WinMix, APP_NAME};
@@ -22,18 +23,21 @@ impl MenuSystem {
     Self { tray }
   }
   pub fn update(&mut self, settings: &Settings) {
+    log::info!("[menu] update menu");
     let menu = Menu::with_items(&[
       &MenuItem::with_id("reload", "Reload", true, None),
       &PredefinedMenuItem::separator(),
     ])
     .unwrap();
 
+    log::info!("[menu] reload apps list");
     let apps = self.get_apps(settings);
     for app in apps.into_iter() {
       let app = app.as_ref();
       menu.append(app).expect("failed to create menu");
     }
 
+    log::info!("[menu] reload settings");
     menu
       .append_items(&[
         &PredefinedMenuItem::separator(),
@@ -43,6 +47,7 @@ impl MenuSystem {
       ])
       .unwrap();
 
+    log::info!("[menu] flush menu");
     self.tray.set_menu(Some(Box::new(menu)));
   }
   pub fn get_apps(&self, settings: &Settings) -> Vec<Box<dyn IsMenuItem>> {
@@ -50,14 +55,13 @@ impl MenuSystem {
 
     let mut exclude = config.exclude.clone();
     let mut targets = config.targets.clone();
-
-    let mut sessions = WinMix::default()
-      .get_default()
-      .unwrap()
-      .sessions
-      .iter()
-      .map(|s| s.name.clone())
-      .collect::<Vec<String>>();
+    let mut sessions: Vec<String> = {
+      let winmix = WinMix::default();
+      let derive = winmix.get_default();
+      let sessions = derive.and_then(|derive| derive.sessions());
+      sessions.map(|session| session.into_iter().map(|session| session.name).collect())
+    }
+    .unwrap_or_default();
 
     exclude.sort();
     targets.sort();

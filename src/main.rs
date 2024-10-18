@@ -1,19 +1,16 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 pub mod config;
+pub mod deamon;
 pub mod menu;
 pub mod settings;
 pub mod winmix;
 
-use std::collections::HashSet;
-use std::sync::mpsc::RecvError;
-use std::sync::mpsc::Sender;
-use std::sync::mpsc::TryRecvError;
-use std::thread;
-use std::time::Duration;
 use std::vec::IntoIter;
 
 use config::Config;
+use deamon::Deamon;
+use ftail::Ftail;
 use menu::MenuSystem;
 use settings::Settings;
 use single_instance::SingleInstance;
@@ -26,209 +23,52 @@ use winit::event_loop::ActiveEventLoop;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
 use winit::window::WindowId;
-use winmix::WinMix;
 
 pub const APP_NAME: &str = "Volume Controller";
 
-pub fn main() {
+fn main() {
+  start_logger();
+
   let instance = SingleInstance::new(APP_NAME).unwrap();
   if !instance.is_single() {
-    println!("detected another instance");
+    log::info!("[main] detected another instance");
     return;
   }
 
-  println!("loading config");
+  log::info!("[main] loading config");
   let config = Config::load().unwrap_or_default();
 
-  println!("loading settings");
+  log::info!("[main] loading settings");
   let settings = Settings::new(config.clone());
 
-  println!("loading menu");
+  log::info!("[main] loading menu");
   let mut menu = MenuSystem::new();
 
-  println!("update menu");
+  log::info!("[main] update menu");
   menu.update(&settings);
 
-  println!("start daemon");
-  let daemon = start_daemon(config);
+  log::info!("[main] start daemon");
+  let daemon = Deamon::create(config);
 
-  println!("start create event loop");
+  log::info!("[main] start create event loop");
   let event_loop = EventLoop::builder().build().unwrap();
   event_loop.set_control_flow(ControlFlow::Wait);
 
-  println!("start create app");
+  log::info!("[main] start create app");
   let mut app = App::new(daemon, settings, menu);
 
-  println!("mount app");
+  log::info!("[main] mount app");
   event_loop.run_app(&mut app).unwrap();
 }
 
-pub enum DaemonCommand {
-  Resumed,
-  Suspended,
-  Update(Config),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VolumeStatus {
-  Restore,
-  Reduce,
-}
-
-impl VolumeStatus {
-  fn toggle(&mut self) {
-    *self = match self {
-      VolumeStatus::Restore => VolumeStatus::Reduce,
-      VolumeStatus::Reduce => VolumeStatus::Restore,
-    }
-  }
-  fn is_timeout(&self, time: Duration) -> bool {
-    time
-      >= match self {
-        VolumeStatus::Restore => RESOTRE_TIMEOUT,
-        VolumeStatus::Reduce => REDUCE_TIMEOUT,
-      }
-  }
-  fn volume(&self, config: &Config) -> f32 {
-    match self {
-      VolumeStatus::Restore => config.resotre_volume,
-      VolumeStatus::Reduce => config.reduce_volume,
-    }
-  }
-  fn new(reduce: bool) -> Self {
-    if reduce {
-      VolumeStatus::Reduce
-    } else {
-      VolumeStatus::Restore
-    }
-  }
-}
-
-const TICK: Duration = Duration::from_millis(100);
-const TRANSFORM_SPEED: f32 = 0.05;
-const REFRESH_AFTER_TICKS: usize = 50;
-
-const REDUCE_TIMEOUT: Duration = Duration::from_millis(200);
-const RESOTRE_TIMEOUT: Duration = Duration::from_secs(3);
-
-fn start_daemon(mut config: Config) -> Sender<DaemonCommand> {
-  let (send, recv) = std::sync::mpsc::channel();
-
-  thread::spawn(move || {
-    let winmix = WinMix::default();
-    let mut transform = true;
-
-    let mut ticks = 0_usize;
-
-    let mut volume_status = VolumeStatus::Restore;
-    let mut expect_volume = config.resotre_volume;
-    let mut timeout = Duration::ZERO;
-
-    let mut sessions = winmix.get_default().unwrap().sessions;
-    'main: loop {
-      let command = recv.try_recv();
-
-      // receive command
-      match command {
-        Ok(DaemonCommand::Update(new_config)) => {
-          println!("daemon.updated");
-          config = new_config;
-        }
-        Ok(DaemonCommand::Suspended) => loop {
-          println!("daemon.suspended");
-          let command = recv.recv();
-          match command {
-            Ok(DaemonCommand::Resumed) => {
-              println!("daemon.resumed");
-              break;
-            }
-            Err(RecvError) => break 'main,
-            _ => {}
-          }
-        },
-        Err(TryRecvError::Disconnected) => break,
-        Err(TryRecvError::Empty) | Ok(DaemonCommand::Resumed) => {}
-      }
-
-      // running daemon
-      if ticks % REFRESH_AFTER_TICKS == 0 {
-        let derive = winmix.get_default().unwrap();
-        sessions = derive.sessions;
-      }
-
-      let mut peak = 0.0_f32;
-      let mut targets = HashSet::new();
-      for session in sessions.iter() {
-        let is_target = config
-          .targets
-          .iter()
-          .any(|target| session.name.contains(target));
-        let need_check = !(is_target
-          || config
-            .exclude
-            .iter()
-            .any(|exclude| session.name.contains(exclude)));
-
-        if need_check {
-          if let Ok(session_peak) = session.vol.get_peak() {
-            peak = peak.max(session_peak);
-          }
-        }
-
-        if is_target {
-          targets.insert(session);
-        }
-      }
-
-      let status = VolumeStatus::new(peak > config.sensitivity);
-
-      if status != volume_status {
-        timeout += TICK;
-        if status.is_timeout(timeout) {
-          volume_status.toggle();
-          expect_volume = volume_status.volume(&config);
-          timeout = Duration::ZERO;
-          transform = true;
-        }
-      } else {
-        timeout = Duration::ZERO;
-      }
-
-      if transform {
-        let mut fadeing = targets.len();
-        for target in targets.iter() {
-          let volume = target.vol.get_volume().unwrap();
-          let offset = expect_volume - volume;
-          let volume = if offset.abs() > TRANSFORM_SPEED {
-            volume + offset.signum() * TRANSFORM_SPEED
-          } else {
-            fadeing -= 1;
-            expect_volume
-          };
-          let _ = target.vol.set_volume(volume);
-        }
-
-        if fadeing == 0 {
-          transform = false;
-        }
-      }
-
-      ticks = ticks.wrapping_add(1);
-      thread::sleep(TICK);
-    }
-  });
-
-  send
-}
-
-pub struct App {
-  pub daemon: Sender<DaemonCommand>,
+struct App {
+  pub daemon: Deamon,
   pub settings: Settings,
   pub menu: MenuSystem,
 }
 
 impl App {
-  fn new(daemon: Sender<DaemonCommand>, settings: Settings, menu: MenuSystem) -> Self {
+  fn new(daemon: Deamon, settings: Settings, menu: MenuSystem) -> Self {
     Self {
       daemon,
       settings,
@@ -240,7 +80,7 @@ impl App {
     let idents = id.split('.').collect::<Vec<_>>();
     let mut idents = idents.into_iter();
 
-    match idents.next().unwrap() {
+    match idents.next().unwrap_or_default() {
       "volume" => {
         let ident = idents.next().unwrap();
         let volume = get_slider_valuee(idents);
@@ -251,11 +91,8 @@ impl App {
           "reduce" => config.reduce_volume = volume,
           _ => unimplemented!(),
         }
-        config.save().unwrap();
-        self
-          .daemon
-          .send(DaemonCommand::Update(config.clone()))
-          .unwrap();
+        let _ = config.save();
+        self.daemon.update(&config);
       }
       "apps" => {
         let app_name = idents.next().unwrap();
@@ -264,10 +101,7 @@ impl App {
           "target" => self.settings.select_target(app_name),
           _ => unimplemented!(),
         }
-        self
-          .daemon
-          .send(DaemonCommand::Update(self.settings.config.clone()))
-          .unwrap();
+        self.daemon.update(&self.settings.config);
       }
       "settings" => match idents.next().unwrap() {
         "autolaunch" => {
@@ -315,7 +149,6 @@ impl ApplicationHandler for App {
 
     // update menu
     if updated {
-      println!("reload menu");
       self.menu.update(&self.settings);
     }
   }
@@ -324,265 +157,19 @@ impl ApplicationHandler for App {
   fn window_event(&mut self, _: &ActiveEventLoop, _: WindowId, _: WindowEvent) {}
 }
 
-//     builder
-//         .setup(move |app| {
-//             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-//             let menu = Menu::with_items(app, &[&quit_item])?;
-//             let _tray = TrayIconBuilder::new()
-//                 .icon(app.default_window_icon().unwrap().clone())
-//                 .menu(&menu)
-//                 .menu_on_left_click(false)
-//                 .on_menu_event(|app, event| match event.id.as_ref() {
-//                     "quit" => {
-//                         app.exit(0);
-//                     }
-//                     _ => {}
-//                 })
-//                 .on_tray_icon_event(|tray, event| match event {
-//                     TrayIconEvent::DoubleClick { .. } => {
-//                         let app = tray.app_handle();
-//                         if let Some(window) = app.get_webview_window("main") {
-//                             let _ = app.emit("show", true);
-//                             let _ = window.show();
-//                             let _ = window.set_focus();
-//                         }
-//                     }
-//                     _ => {}
-//                 })
-//                 .build(app)?;
+fn start_logger() {
+  let logfile = std::env::current_exe()
+    .unwrap()
+    .with_file_name("volume-controller.log");
+  let logfile = logfile.to_str().unwrap_or("volume-controller.log");
+  let mut ftail = Ftail::new();
+  ftail = ftail.datetime_format("%m-%d %H:%M:%S");
 
-//             app.manage(Mutex::new(None::<Sender<MixerCommand>>));
-//             app.manage(cli.clone());
+  if cfg!(debug_assertions) {
+    ftail = ftail.formatted_console(log::LevelFilter::Debug);
+  }
 
-//             let window = app.get_webview_window("main").expect("no main window");
+  ftail = ftail.single_file(logfile, false, log::LevelFilter::Info);
 
-//             if !cli.quiet {
-//                 let _ = app.emit("show", true);
-//                 let _ = window.show().unwrap();
-//             }
-
-//             window.clone().on_window_event(move |event| {
-//                 if let WindowEvent::CloseRequested { api, .. } = event {
-//                     api.prevent_close();
-//                     let _ = window.clone().hide().unwrap();
-//                     let _ = window.app_handle().emit("show", false);
-//                 }
-//             });
-
-//             start_mixer(app.state(), app.state());
-
-//             Ok(())
-//         })
-//         .plugin(tauri_plugin_shell::init())
-//         .invoke_handler(tauri::generate_handler![
-//             get_mixer,
-//             start_mixer,
-//             update_mixer,
-//             get_default_derive,
-//             set_autolaunch,
-//             get_autolaunch,
-//         ])
-//         .run(tauri::generate_context!())
-//         .expect("error while running tauri application");
-// }
-
-// #[tauri::command]
-// fn start_mixer(cli: State<Cli>, sender: State<Mutex<Option<Sender<MixerCommand>>>>) {
-//     let mixer = Mixer::from_path(cli.configs.clone()).unwrap_or_default();
-//     if let Some(sender) = sender.lock().unwrap().as_ref() {
-//         let _ = sender.send(MixerCommand::Stop);
-//     }
-//     unsafe {
-//         let (tx, rx) = std::sync::mpsc::channel();
-//         thread::spawn(move || {
-//             println!("start mixer");
-//             let winmix = WinMix::default();
-//             let mut include = mixer.include;
-//             let mut targets = mixer.targets;
-//             let mut exclude = mixer.exclude;
-//             let mut resotre_volume = mixer.resotre_volume;
-//             let mut reduce_volume = mixer.reduce_volume;
-
-//             let mut reduce = false;
-//             let mut ticks = 0_usize;
-//             let mut transform = true;
-
-//             let volume_step = 0.02;
-//             loop {
-//                 match rx.try_recv() {
-//                     Ok(MixerCommand::Update(new_mixer)) => {
-//                         println!("update mixer");
-//                         include = new_mixer.include;
-//                         targets = new_mixer.targets;
-//                         exclude = new_mixer.exclude;
-//                         resotre_volume = new_mixer.resotre_volume;
-//                         reduce_volume = new_mixer.reduce_volume;
-//                     }
-//                     Ok(MixerCommand::Stop) | Err(TryRecvError::Disconnected) => {
-//                         println!("stop mixer");
-//                         break;
-//                     }
-//                     Err(TryRecvError::Empty) => {}
-//                 }
-
-//                 let derive = winmix.get_default().unwrap();
-//                 let sessions = derive.sessions;
-
-//                 let mut volume_targets = vec![];
-//                 let sessions: Vec<_> = sessions
-//                     .iter()
-//                     .filter_map(|session| {
-//                         let name = &session.name;
-//                         if targets.iter().any(|target| name.contains(target)) {
-//                             volume_targets.push(session);
-//                             return None;
-//                         }
-//                         if exclude.iter().any(|exclude| name.contains(exclude)) {
-//                             return None;
-//                         }
-//                         if include.is_empty()
-//                             || include.iter().any(|include| name.contains(include))
-//                         {
-//                             return Some(session.vol.get_peak().unwrap());
-//                         }
-//                         None
-//                     })
-//                     .collect();
-
-//                 let max_volume = sessions
-//                     .iter()
-//                     .max_by(|x, y| x.partial_cmp(y).unwrap())
-//                     .unwrap();
-//                 let is_reduce = *max_volume > 0.1;
-
-//                 if is_reduce != reduce {
-//                     ticks += 1;
-//                     let transform_ticks = if reduce { 60 } else { 3 };
-//                     if ticks >= transform_ticks {
-//                         reduce = is_reduce;
-//                         transform = true;
-//                         ticks = 0;
-//                     }
-//                 } else {
-//                     ticks = 0;
-//                 }
-
-//                 if transform {
-//                     let expect_volume = if reduce {
-//                         reduce_volume
-//                     } else {
-//                         resotre_volume
-//                     };
-
-//                     let mut fadeing = volume_targets.len();
-//                     for target in volume_targets {
-//                         let prev_volume = target.vol.get_volume().unwrap();
-//                         let offset = expect_volume - prev_volume;
-//                         if offset.abs() < f32::EPSILON {
-//                             continue;
-//                         } else {
-//                             let volume = if offset.abs() > volume_step {
-//                                 volume_step * offset.signum() + prev_volume
-//                             } else {
-//                                 fadeing -= 1;
-//                                 expect_volume
-//                             };
-//                             let _ = target.vol.set_volume(volume);
-//                         }
-//                     }
-
-//                     if fadeing == 0 {
-//                         transform = false;
-//                     }
-//                 }
-
-//                 sleep(Duration::from_millis(50));
-//             }
-//         });
-//         *sender.lock().unwrap() = Some(tx);
-//     }
-// }
-
-// #[tauri::command]
-// fn get_max_volume(winmix: State<WinMix>, filter: Vec<String>) -> f32 {
-//     unsafe {
-//         let derive = winmix.get_default().unwrap();
-//         derive
-//             .sessions
-//             .iter()
-//             .filter_map(|session| {
-//                 if filter.contains(&session.name) {
-//                     return None;
-//                 }
-//                 Some(session.vol.get_peak().unwrap())
-//             })
-//             .max_by(|x, y| x.partial_cmp(y).unwrap())
-//             .expect("failed to get max volume")
-//     }
-// }
-
-// #[tauri::command]
-// fn get_min_volume(winmix: State<WinMix>, filter: Vec<String>) -> f32 {
-//     unsafe {
-//         let derive = winmix.get_default().unwrap();
-//         derive
-//             .sessions
-//             .iter()
-//             .filter_map(|session| {
-//                 if filter.contains(&session.name) {
-//                     return None;
-//                 }
-//                 Some(session.vol.get_peak().unwrap())
-//             })
-//             .min_by(|x, y| x.partial_cmp(y).unwrap())
-//             .expect("failed to get max volume")
-//     }
-// }
-
-// #[tauri::command]
-// fn get_default_derive() -> DeriveView {
-//     let winmix = WinMix::default();
-//     unsafe {
-//         let derive = winmix.get_default().unwrap();
-//         derive.view().expect("failed display derive info")
-//     }
-// }
-
-// #[tauri::command]
-// fn get_mixer(cli: State<Cli>) -> Mixer {
-//     let mixer = Mixer::from_path(cli.configs.clone()).unwrap_or_default();
-//     mixer
-// }
-
-// #[tauri::command]
-// fn update_mixer(cli: State<Cli>, sender: State<Mutex<Option<Sender<MixerCommand>>>>, mixer: Mixer) {
-//     mixer.save(cli.configs.clone()).unwrap();
-//     if let Some(sender) = sender.lock().unwrap().as_ref() {
-//         let _ = sender.send(MixerCommand::Update(mixer));
-//     }
-// }
-
-// #[cfg(desktop)]
-// #[tauri::command]
-// fn set_autolaunch(app: AppHandle, set: bool) {
-//     // Get the autostart manager
-//     let autostart_manager = app.autolaunch();
-//     if set {
-//         // Enable autostart
-//         autostart_manager
-//             .enable()
-//             .expect("failed to enable autostart");
-//     } else {
-//         // Disable autostart
-//         autostart_manager
-//             .disable()
-//             .expect("failed to disable autostart");
-//     }
-// }
-
-// #[cfg(desktop)]
-// #[tauri::command]
-// fn get_autolaunch(app: AppHandle) -> bool {
-//     let autostart_manager = app.autolaunch();
-//     autostart_manager.is_enabled().unwrap()
-// }
+  ftail.init().unwrap();
+}

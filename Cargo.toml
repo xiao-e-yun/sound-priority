@@ -2,7 +2,7 @@
 name = "volume-controller"
 version = "0.1.0"
 description = "Volume Controller"
-authors = ["you"]
+authors = ["xiaoeyun"]
 edition = "2021"
 
 [profile.release]
@@ -22,6 +22,8 @@ convert_case = "0.6.0"
 auto-launch = "=0.2.0"
 windows-result = "0.1.1"
 single-instance = "0.3.3"
+log = "0.4.22"
+ftail = "0.1.2"
 
 [dependencies.windows]
 version = "0.56.0"
