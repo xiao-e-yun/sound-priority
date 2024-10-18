@@ -1,4 +1,4 @@
-# Volume Mixer Tiny
+# Volume Controller
 
 Volume Mixer Tiny is a simple application designed to automatically reduce the volume of your music when any other sound is detected.
 
