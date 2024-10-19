@@ -9,7 +9,6 @@ use crate::{config::Config, winmix::WinMix};
 
 const TICK: Duration = Duration::from_millis(100);
 const TRANSFORM_SPEED: f32 = 0.05;
-const REFRESH_AFTER_TICKS: usize = 50;
 
 const REDUCE_TIMEOUT: Duration = Duration::from_millis(200);
 const RESOTRE_TIMEOUT: Duration = Duration::from_secs(3);
@@ -50,8 +49,10 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
     let mut expect_volume = config.resotre_volume;
     let mut timeout = Duration::ZERO;
 
-    let mut derive = winmix.get_default().expect("failed to get default derive");
-    let registered = derive.register().is_ok();
+    let mut device = winmix.get_default().expect("failed to get default device");
+    if device.register().is_err() {
+      log::error!("[daemon] failed to register device");
+    }
 
     log::info!("[daemon.started]");
     'main: loop {
@@ -81,16 +82,14 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
       }
 
       // running daemon
-      if registered || ticks % REFRESH_AFTER_TICKS == 0 {
-        let faill = derive.sync(!registered).is_err();
-        if faill {
-          log::warn!("[daemon] failed to sync");
-        }
+      let faill = device.sync().is_err();
+      if faill {
+        log::warn!("[daemon] failed to sync");
       }
 
       let mut peak = 0.0_f32;
       let mut targets = HashSet::new();
-      let sessions = derive.sessions();
+      let sessions = device.current_sessions();
       for session in sessions.iter() {
         let name = &session.name;
         let is_target = config.targets.iter().any(|exclude| name.contains(exclude));

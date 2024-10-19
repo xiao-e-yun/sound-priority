@@ -1,16 +1,14 @@
-use default::DefaultDerive;
-use derive::Derive;
+use device::Device;
 use windows::Win32::{
-  Media::Audio::{eMultimedia, eRender, IMMDeviceEnumerator, MMDeviceEnumerator},
+  Media::Audio::{eMultimedia, eRender, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator},
   System::Com::{CoCreateInstance, CoInitialize, CoUninitialize, CLSCTX_ALL},
 };
 use windows_result::{Error, HRESULT};
 
 // WinMix: Change Windows Volume Mixer via Rust
-pub mod derive;
+pub mod device;
 pub mod session;
 pub mod volume;
-pub mod default;
 
 #[derive(Debug)]
 pub struct WinMix {
@@ -18,19 +16,19 @@ pub struct WinMix {
 }
 
 impl WinMix {
-  pub fn get_default<'a>(&'a self) -> Result<DefaultDerive<'a>, Error> {
-    DefaultDerive::from_winmix(&self)
+  pub fn get_default<'a>(&'a self) -> Result<Device<'a>, Error> {
+    let device = self.get_default_immdevice()?;
+    Ok(Device::new(&self, device))
   }
-  pub fn get_current_default<'a>(&'a self) -> Result<Derive<'a>, Error> {
+  pub fn get_default_immdevice<'a>(&'a self) -> Result<IMMDevice, Error> {
     unsafe {
-      let res: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
-      let device = res.GetDefaultAudioEndpoint(eRender, eMultimedia)?;
-      Derive::from_immdevice(device)
+      let enumerator = self.get_device_enumerator()?;
+      enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
     }
   }
   // Enumerate all audio sessions from all audio endpoints via WASAPI.
-  // pub fn enumerate(&self) -> Result<Vec<Derive>, Error> {
-  //   let mut result = Vec::<Derive>::new();
+  // pub fn enumerate(&self) -> Result<Vec<Device>, Error> {
+  //   let mut result = Vec::<Device>::new();
 
   //   unsafe {
   //     let res: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
@@ -41,16 +39,14 @@ impl WinMix {
 
   //     for device_id in 0..device_count {
   //       let device = collection.Item(device_id)?;
-  //       result.push(Derive::from_immdevice(device)?);
+  //       result.push(Device::from_immdevice(device)?);
   //     }
   //   }
   //   Ok(result)
   // }
-  pub fn get_derive_enumerator(&self) -> Result<IMMDeviceEnumerator,Error> {
-    unsafe {
-      CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-    }
-	}
+  pub fn get_device_enumerator(&self) -> Result<IMMDeviceEnumerator, Error> {
+    unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }
+  }
 }
 
 impl Default for WinMix {

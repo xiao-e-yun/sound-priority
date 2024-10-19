@@ -10,7 +10,7 @@ on:
       - v[0-9]+.*
 
 env:
-  APP_NAME: volume-controller
+  APP_NAME: sound-priority
 
 jobs:
   create-release:

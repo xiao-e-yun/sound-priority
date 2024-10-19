@@ -59,8 +59,8 @@ impl MenuSystem {
       let winmix = WinMix::default();
        // we only reload the apps list after operation
        // so we can just get the current default
-      let derive = winmix.get_current_default();
-      let sessions = derive.and_then(|derive| derive.sessions());
+      let device = winmix.get_default();
+      let sessions = device.and_then(|device| device.get_sessions());
       sessions.map(|session| session.into_iter().map(|session| session.name).collect())
     }
     .unwrap_or_default();

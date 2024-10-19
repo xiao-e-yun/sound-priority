@@ -24,7 +24,7 @@ use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
 use winit::window::WindowId;
 
-pub const APP_NAME: &str = "Volume Controller";
+pub const APP_NAME: &str = "Sound Priority";
 
 fn main() {
   start_logger();
@@ -160,8 +160,8 @@ impl ApplicationHandler for App {
 fn start_logger() {
   let logfile = std::env::current_exe()
     .unwrap()
-    .with_file_name("volume-controller.log");
-  let logfile = logfile.to_str().unwrap_or("volume-controller.log");
+    .with_file_name("sound-priority.log");
+  let logfile = logfile.to_str().unwrap_or("sound-priority.log");
   let mut ftail = Ftail::new();
   ftail = ftail.datetime_format("%m-%d %H:%M:%S");
 

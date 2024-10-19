@@ -1,7 +1,7 @@
 [package]
-name = "volume-controller"
+name = "sound-priority"
 version = "0.1.0"
-description = "Volume Controller"
+description = "Sound Priority"
 authors = ["xiaoeyun"]
 edition = "2021"
 
