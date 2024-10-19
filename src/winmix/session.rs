@@ -2,7 +2,7 @@ use std::{hash::Hash, path::PathBuf};
 
 use super::volume::SessionVolume;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Session<'a> {
   /// The PID of the process that controls this audio session.
   pub pid: u32,

@@ -25,7 +25,7 @@ use super::{
   volume::{EndpointVolume, SessionVolume},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Derive<'a> {
   device: IMMDevice,
   phantom: PhantomData<&'a ()>,

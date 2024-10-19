@@ -69,7 +69,7 @@ impl<'a> EndpointVolume<'a> {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SessionVolume<'a> {
   simple_audio_volume: ISimpleAudioVolume,
   audio_meter_information: IAudioMeterInformation,
