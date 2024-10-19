@@ -57,7 +57,9 @@ impl MenuSystem {
     let mut targets = config.targets.clone();
     let mut sessions: Vec<String> = {
       let winmix = WinMix::default();
-      let derive = winmix.get_default();
+       // we only reload the apps list after operation
+       // so we can just get the current default
+      let derive = winmix.get_current_default();
       let sessions = derive.and_then(|derive| derive.sessions());
       sessions.map(|session| session.into_iter().map(|session| session.name).collect())
     }

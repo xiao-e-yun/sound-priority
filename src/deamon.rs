@@ -50,8 +50,8 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
     let mut expect_volume = config.resotre_volume;
     let mut timeout = Duration::ZERO;
 
-    let mut derive = winmix.get_default().unwrap();
-    let mut sessions = derive.sessions().unwrap_or_default();
+    let mut derive = winmix.get_default().expect("failed to get default derive");
+    let registered = derive.register().is_ok();
 
     log::info!("[daemon.started]");
     'main: loop {
@@ -81,13 +81,16 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
       }
 
       // running daemon
-      if ticks % REFRESH_AFTER_TICKS == 0 {
-        derive = winmix.get_default().unwrap();
-        sessions = derive.sessions().unwrap_or_default();
+      if registered || ticks % REFRESH_AFTER_TICKS == 0 {
+        let faill = derive.sync(!registered).is_err();
+        if faill {
+          log::warn!("[daemon] failed to sync");
+        }
       }
 
       let mut peak = 0.0_f32;
       let mut targets = HashSet::new();
+      let sessions = derive.sessions();
       for session in sessions.iter() {
         let name = &session.name;
         let is_target = config.targets.iter().any(|exclude| name.contains(exclude));
