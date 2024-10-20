@@ -122,7 +122,7 @@ impl<'a> Device<'a> {
     }
   }
 
-  pub fn sync(&mut self) -> Result<(), Error> {
+  pub fn sync(&mut self, force: bool) -> Result<(), Error> {
     let device_synced = self
       .device_receiver
       .as_ref()
@@ -135,7 +135,7 @@ impl<'a> Device<'a> {
       .and_then(|receiver| receiver.try_recv().ok())
       .is_none();
 
-    if !device_synced {
+    if !device_synced || force {
       log::info!("syncing device");
       let is_registered_sessions = self.sessions_receiver.is_some();
       if is_registered_sessions {
@@ -156,7 +156,7 @@ impl<'a> Device<'a> {
       }
     }
 
-    if !sessions_synced {
+    if !sessions_synced || force {
       log::info!("syncing sessions");
       self.sessions = Some(self.get_sessions()?);
     }

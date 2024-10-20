@@ -13,6 +13,8 @@ const TRANSFORM_SPEED: f32 = 0.05;
 const REDUCE_TIMEOUT: Duration = Duration::from_millis(200);
 const RESOTRE_TIMEOUT: Duration = Duration::from_secs(3);
 
+const FORCE_RELOAD_TICKS: usize = 600;
+
 pub struct Deamon {
   sender: Sender<DaemonCommand>,
 }
@@ -44,7 +46,7 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
   thread::spawn(move || {
     let winmix = WinMix::default();
     let mut transform = true;
-    let mut ticks = 0_usize;
+    let mut ticks = 1_usize;
     let mut volume_status = VolumeStatus::Restore;
     let mut expect_volume = config.resotre_volume;
     let mut timeout = Duration::ZERO;
@@ -82,7 +84,7 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
       }
 
       // running daemon
-      let faill = device.sync().is_err();
+      let faill = device.sync(ticks % FORCE_RELOAD_TICKS == 0).is_err();
       if faill {
         log::warn!("[daemon] failed to sync");
       }
