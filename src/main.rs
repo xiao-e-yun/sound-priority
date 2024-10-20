@@ -6,6 +6,7 @@ pub mod menu;
 pub mod settings;
 pub mod winmix;
 
+use std::fs;
 use std::vec::IntoIter;
 
 use config::Config;
@@ -79,7 +80,8 @@ impl App {
     let id = event.id().0.as_str();
     let idents = id.split('.').collect::<Vec<_>>();
     let mut idents = idents.into_iter();
-
+    
+    log::info!("[main] click menu item: {}", id);
     match idents.next().unwrap_or_default() {
       "volume" => {
         let ident = idents.next().unwrap();
@@ -161,6 +163,9 @@ fn start_logger() {
   let logfile = std::env::current_exe()
     .unwrap()
     .with_file_name("sound-priority.log");
+
+  fs::remove_file(&logfile).ok();
+
   let logfile = logfile.to_str().unwrap_or("sound-priority.log");
   let mut ftail = Ftail::new();
   ftail = ftail.datetime_format("%m-%d %H:%M:%S");
