@@ -1,8 +1,5 @@
 use std::{
-  collections::HashSet,
-  sync::mpsc::{channel, Receiver, Sender, TryRecvError},
-  thread,
-  time::Duration,
+  collections::HashSet, sync::mpsc::{channel, Receiver, Sender, TryRecvError}, thread, time::Duration
 };
 
 use crate::{config::Config, winmix::WinMix};
@@ -50,6 +47,7 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
     let mut volume_status = VolumeStatus::Restore;
     let mut expect_volume = config.resotre_volume;
     let mut timeout = Duration::ZERO;
+    let mut initialized = HashSet::new();
 
     let mut device = winmix.get_default().expect("failed to get default device");
     if device.register().is_err() {
@@ -98,6 +96,12 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
 
         if is_target {
           targets.insert(session);
+
+          // Initialize target volumes
+          if initialized.insert(name.clone()) {
+            let _ = session.volume.set_volume(expect_volume);
+            log::info!("[daemon] initialize target app: {}", name);
+          }
         }
 
         let is_exclude = config.exclude.iter().any(|exclude| name.contains(exclude));
