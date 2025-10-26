@@ -91,6 +91,7 @@ impl App {
           "sensitivity" => config.sensitivity = volume,
           "restore" => config.resotre_volume = volume,
           "reduce" => config.reduce_volume = volume,
+          "speed" => config.transform_speed = volume,
           _ => unimplemented!(),
         }
         let _ = config.save();

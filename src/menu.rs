@@ -140,6 +140,7 @@ impl MenuSystem {
         &slider("volume.sensitivity", "Sensitivity", config.sensitivity),
         &slider("volume.restore", "Restore Volume", config.resotre_volume),
         &slider("volume.reduce", "Reduce Volume", config.reduce_volume),
+        &slider("volume.speed", "Transform Speed", config.transform_speed),
         &MenuItem::with_id(
           "settings.autolaunch",
           checkbox("Launch on startup", settings.get_autolaunch()),

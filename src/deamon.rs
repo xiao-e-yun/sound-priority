@@ -8,7 +8,8 @@ use std::{
 use crate::{config::Config, winmix::WinMix};
 
 const TICK: Duration = Duration::from_millis(100);
-const TRANSFORM_SPEED: f32 = 0.05;
+const REDUCE_TRANSFORM_SPEED: f32 = 0.2;
+const RESOTRE_TRANSFORM_SPEED: f32 = 0.1;
 
 const REDUCE_TIMEOUT: Duration = Duration::from_millis(200);
 const RESOTRE_TIMEOUT: Duration = Duration::from_secs(3);
@@ -131,17 +132,28 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
         timeout = Duration::ZERO;
       }
 
+      let enable_transform = config.transform_speed > f32::EPSILON;
+
       if transform {
         let mut fadeing = targets.len();
         for target in targets.iter() {
-          let volume = target.volume.get_volume().unwrap();
-          let offset = expect_volume - volume;
-          let volume = if offset.abs() > TRANSFORM_SPEED {
-            volume + offset.signum() * TRANSFORM_SPEED
+          let mut volume = target.volume.get_volume().unwrap();
+          if enable_transform {
+            let speed = match volume_status {
+              VolumeStatus::Reduce => REDUCE_TRANSFORM_SPEED,
+              VolumeStatus::Restore => RESOTRE_TRANSFORM_SPEED,
+            } * config.transform_speed;
+            let offset = expect_volume - volume;
+            volume = if offset.abs() > speed {
+              volume + offset.signum() * speed
+            } else {
+              fadeing -= 1;
+              expect_volume
+            };
           } else {
-            fadeing -= 1;
-            expect_volume
-          };
+            fadeing = 0;
+            volume = expect_volume;
+          }
           target.volume.set_volume(volume).ok();
         }
 

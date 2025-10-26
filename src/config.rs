@@ -7,6 +7,7 @@ pub struct Config {
   pub exclude: Vec<String>,
   pub targets: Vec<String>,
 
+  pub transform_speed: f32,
   pub resotre_volume: f32,
   pub reduce_volume: f32,
   pub sensitivity: f32,
@@ -17,6 +18,7 @@ impl Config {
     Self {
       exclude: vec![],
       targets: vec![],
+      transform_speed: 1.0,
       resotre_volume: 1.0,
       reduce_volume: 0.5,
       sensitivity: 0.1,
