@@ -11,7 +11,7 @@ const TICK: Duration = Duration::from_millis(100);
 const REDUCE_TRANSFORM_SPEED: f32 = 0.2;
 const RESOTRE_TRANSFORM_SPEED: f32 = 0.1;
 
-const REDUCE_TIMEOUT: Duration = Duration::from_millis(200);
+const REDUCE_TIMEOUT: Duration = Duration::ZERO;
 const RESOTRE_TIMEOUT: Duration = Duration::from_secs(3);
 
 const FORCE_RELOAD_TICKS: usize = 600;
