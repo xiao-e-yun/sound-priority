@@ -139,7 +139,7 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
             fadeing -= 1;
             expect_volume
           };
-          let _ = target.volume.set_volume(volume);
+          target.volume.set_volume(volume).ok();
         }
 
         if fadeing == 0 {
