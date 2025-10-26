@@ -4,24 +4,31 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-  pub exclude: Vec<String>,
+  #[serde(default)]
+  pub exclude: Vec<String>,    
+  #[serde(default)]
   pub targets: Vec<String>,
 
+  #[serde(default = "default_transform_speed")]
   pub transform_speed: f32,
+  #[serde(default = "default_resotre_volume")]
   pub resotre_volume: f32,
+  #[serde(default = "default_reduce_volume")]
   pub reduce_volume: f32,
+  #[serde(default = "default_sensitivity")]
   pub sensitivity: f32,
 }
+
 
 impl Config {
   pub fn new() -> Self {
     Self {
       exclude: vec![],
       targets: vec![],
-      transform_speed: 1.0,
-      resotre_volume: 1.0,
-      reduce_volume: 0.5,
-      sensitivity: 0.1,
+      transform_speed: default_transform_speed(),
+      resotre_volume: default_resotre_volume(),
+      reduce_volume: default_reduce_volume(),
+      sensitivity: default_sensitivity(),
     }
   }
   pub fn load() -> Option<Self> {
@@ -48,3 +55,8 @@ impl Default for Config {
     Self::new()
   }
 }
+
+fn default_transform_speed() -> f32 { 1.0 }
+fn default_resotre_volume() -> f32 { 1.0 }
+fn default_reduce_volume() -> f32 { 0.5 }
+fn default_sensitivity() -> f32 { 0.1 }
