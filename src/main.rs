@@ -80,7 +80,7 @@ impl App {
     let id = event.id().0.as_str();
     let idents = id.split('.').collect::<Vec<_>>();
     let mut idents = idents.into_iter();
-    
+
     log::info!("[main] click menu item: {}", id);
     match idents.next().unwrap_or_default() {
       "volume" => {

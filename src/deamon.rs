@@ -1,5 +1,8 @@
 use std::{
-  collections::HashSet, sync::mpsc::{channel, Receiver, Sender, TryRecvError}, thread, time::Duration
+  collections::{HashSet},
+  sync::mpsc::{channel, Receiver, Sender, TryRecvError},
+  thread,
+  time::Duration,
 };
 
 use crate::{config::Config, winmix::WinMix};
