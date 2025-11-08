@@ -1,5 +1,5 @@
 use std::{
-  collections::{HashSet},
+  collections::HashSet,
   sync::mpsc::{channel, Receiver, Sender, TryRecvError},
   thread,
   time::Duration,
@@ -111,10 +111,10 @@ fn create_daemon(receiver: Receiver<DaemonCommand>, mut config: Config) {
         let is_exclude = config.exclude.iter().any(|exclude| name.contains(exclude));
         let need_check = !is_target && !is_exclude;
 
-        if need_check {
-          if let Ok(session_peak) = session.volume.get_peak() {
-            peak = peak.max(session_peak);
-          }
+        if need_check && !session.volume.get_mute().unwrap_or(true) {
+          let factor = session.volume.get_volume().unwrap_or(1.0);
+          let session_peak = session.volume.get_peak().unwrap_or(0.0);
+          peak = peak.max(session_peak * factor);
         }
       }
 
